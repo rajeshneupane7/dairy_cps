@@ -1,0 +1,16 @@
+Variable_Noised,Noise_Level,Detected_Cyber_Anomalies,Detected_Biological_Events,Detected_Normal
+Milk,0.01,7,255,2100
+Milk,0.05,5,239,1978
+Milk,0.1,7,202,2023
+Milk,0.15,7,230,2139
+Milk,0.2,6,200,2040
+RT,0.01,6,241,2199
+RT,0.05,6,242,2198
+RT,0.1,7,236,2203
+RT,0.15,6,234,2206
+RT,0.2,6,235,2205
+Water,0.01,6,242,2198
+Water,0.05,8,241,2197
+Water,0.1,7,240,2199
+Water,0.15,6,238,2202
+Water,0.2,7,236,2203

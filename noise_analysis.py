@@ -180,34 +180,64 @@ selected_df=selected_df.rename(columns={
     'Group_ID': 'sensor_group'
 })
 
-def inject_noise(df, noise_level):
+def inject_noise(df, noise_level, variable_to_noise='RT'):
     noisy_df = df.copy()
-    # Add noise to the 'RT' column of the test data part
-    mean_rt = noisy_df['RT'].mean()
-    noise = np.random.normal(0, mean_rt * noise_level, noisy_df.shape[0])
-    noisy_df['RT'] += noise
+    
+    if variable_to_noise not in noisy_df.columns:
+        print(f"Warning: Variable '{variable_to_noise}' not found in DataFrame. Skipping noise injection for this variable.")
+        return noisy_df
+
+    # Add noise to the specified column
+    mean_val = noisy_df[variable_to_noise].mean()
+    std_val = noisy_df[variable_to_noise].std()
+    
+    # Use standard deviation for scaling noise, or mean if std is zero/undefined
+    scale_factor = std_val if std_val > 0 else mean_val if mean_val > 0 else 1.0
+    
+    noise = np.random.normal(0, scale_factor * noise_level, noisy_df.shape[0])
+    noisy_df[variable_to_noise] += noise
     return noisy_df
 
+    print("Please load a dataframe into 'selected_df' to run the noise analysis.")
+
+variables_to_noise = ['Milk', 'RT', 'Water']
 noise_levels = [0.01, 0.05, 0.1, 0.15, 0.2]
-results_summary = {}
+all_results = []
 
 if selected_df is not None:
-    for noise in noise_levels:
-        print(f"--- Running analysis with {noise*100:.2f}% noise ---")
-        noisy_df = inject_noise(selected_df, noise)
-        
-        # Rerun the system with noisy data
-        system_noisy = DairyDigitalTwinSystem(noisy_df)
-        system_noisy.run_pipeline()
-        results_noisy = system_noisy.generate_report()
-        
-        num_anomalies = len(results_noisy[results_noisy['status'] == 'CYBER_ANOMALY'])
-        results_summary[noise] = num_anomalies
-        print(f"Found {num_anomalies} anomalies with {noise*100:.2f}% noise")
-        print("\n" + "=" * 40 + "\n")
+    for variable in variables_to_noise:
+        print(f"=== Running analysis for noise in {variable} ===")
+        for noise in noise_levels:
+            print(f"--- Running analysis with {noise*100:.2f}% noise in {variable} ---")
+            noisy_df = inject_noise(selected_df, noise, variable_to_noise=variable)
+            
+            # Rerun the system with noisy data
+            system_noisy = DairyDigitalTwinSystem(noisy_df)
+            system_noisy.run_pipeline()
+            results_noisy = system_noisy.generate_report()
+            
+            num_cyber_anomalies = len(results_noisy[results_noisy['status'] == 'CYBER_ANOMALY'])
+            num_biological_events = len(results_noisy[results_noisy['status'] == 'BIOLOGICAL_EVENT'])
+            num_normal = len(results_noisy[results_noisy['status'] == 'NORMAL'])
+
+            all_results.append({
+                'Variable_Noised': variable,
+                'Noise_Level': noise,
+                'Detected_Cyber_Anomalies': num_cyber_anomalies,
+                'Detected_Biological_Events': num_biological_events,
+                'Detected_Normal': num_normal
+            })
+            
+            print(f"Found {num_cyber_anomalies} cyber anomalies with {noise*100:.2f}% noise in {variable}")
+            print("\n" + "=" * 40 + "\n")
 
     print("--- Noise Injection Summary ---")
-    for noise, anomalies in results_summary.items():
-        print(f"Noise Level: {noise*100:.2f}% -> Detected Anomalies: {anomalies}")
+    results_df = pd.DataFrame(all_results)
+    print(results_df)
+
+    # Save results to CSV
+    output_csv_path = '/home/rajesh/work/dairy_cps/noise.csv'
+    results_df.to_csv(output_csv_path, index=False)\
+    print(f"\nDetailed results saved to {output_csv_path}")
 else:
     print("Please load a dataframe into 'selected_df' to run the noise analysis.")
