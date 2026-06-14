@@ -154,17 +154,20 @@ class DairyDigitalTwinSystem:
         targeted_groups = group_stats[group_stats['breach_prob'] > 0.30]
 
         # Output Results
-        print("=== SYSTEM AUDIT REPORT ===")
-        print(f"Unexplained Anomalies Found: {len(report_df[report_df['status'] == 'CYBER_ANOMALY'])}")
+        # print("=== SYSTEM AUDIT REPORT ===")
+        # print(f"Unexplained Anomalies Found: {len(report_df[report_df['status'] == 'CYBER_ANOMALY'])}")
         
-        if not attack_dates.empty:
-            print(f"[!] SYSTEM-WIDE ATTACK DETECTED ON DATES: {attack_dates.index.tolist()}")
+        # if not attack_dates.empty:
+        #     print(f"[!] SYSTEM-WIDE ATTACK DETECTED ON DATES: {attack_dates.index.tolist()}")
             
-        if not targeted_groups.empty:
-            print(f"[!] INFRASTRUCTURE BREACH SUSPECTED IN GROUPS: {targeted_groups.index.tolist()}")
+        # if not targeted_groups.empty:
+        #     print(f"[!] INFRASTRUCTURE BREACH SUSPECTED IN GROUPS: {targeted_groups.index.tolist()}")
             
         return report_df
 
+# ==========================================
+# 3. DATA LOADING AND NOISE INJECTION
+# ==========================================
 data_dir='/home/rajesh/work/data/data_move_-1.csv'
 df= pd.read_csv(data_dir)
 selected_df=df[['date_x', 'Animal_ID', 'Event', 'THI', 'yield', 'water_intake in l', 'Days_in_Milk', 'rum_index', 'Group_ID']]
@@ -184,7 +187,7 @@ def inject_noise(df, noise_level, variable_to_noise='RT'):
     noisy_df = df.copy()
     
     if variable_to_noise not in noisy_df.columns:
-        print(f"Warning: Variable '{variable_to_noise}' not found in DataFrame. Skipping noise injection for this variable.")
+        # print(f"Warning: Variable '{variable_to_noise}' not found in DataFrame. Skipping noise injection for this variable.")
         return noisy_df
 
     # Add noise to the specified column
@@ -198,8 +201,66 @@ def inject_noise(df, noise_level, variable_to_noise='RT'):
     noisy_df[variable_to_noise] += noise
     return noisy_df
 
-    print("Please load a dataframe into 'selected_df' to run the noise analysis.")
+# ==========================================
+# 4. VISUALIZATION FUNCTION
+# ==========================================
+def visualize_results(results_df):
+    """
+    Generates two plots:
+    1. Line plot of Cyber Anomalies vs Noise Level.
+    2. Stacked bar chart showing the distribution of outcomes at max noise.
+    """
+    # Set style
+    plt.style.use('ggplot')
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
+    # --- Plot 1: Sensitivity Analysis (Line Plot) ---
+    for var in results_df['Variable_Noised'].unique():
+        subset = results_df[results_df['Variable_Noised'] == var]
+        ax1.plot(subset['Noise_Level'], subset['Detected_Cyber_Anomalies'], 
+                 marker='o', linewidth=2, markersize=8, label=f'Noise in {var}')
+
+    ax1.set_title('Sensitivity: Cyber Anomalies vs. Noise Level', fontsize=14, fontweight='bold')
+    ax1.set_xlabel('Noise Level (Standard Deviation Multiplier)', fontsize=12)
+    ax1.set_ylabel('Count of Detected Cyber Anomalies', fontsize=12)
+    ax1.legend(title='Variable Targeted')
+    ax1.grid(True, linestyle='--', alpha=0.7)
+
+    # --- Plot 2: Outcome Distribution at Max Noise (Stacked Bar) ---
+    max_noise = results_df['Noise_Level'].max()
+    max_noise_data = results_df[results_df['Noise_Level'] == max_noise].set_index('Variable_Noised')
+    
+    x = np.arange(len(max_noise_data))
+    width = 0.5
+    
+    # Calculate bottom positions for stacking
+    p1 = max_noise_data['Detected_Cyber_Anomalies']
+    p2 = max_noise_data['Detected_Biological_Events']
+    p3 = max_noise_data['Detected_Normal']
+
+    ax2.bar(x, p1, width, label='Cyber Anomalies', color='#E74C3C') # Red
+    ax2.bar(x, p2, width, bottom=p1, label='Biological Events', color='#F39C12') # Orange
+    ax2.bar(x, p3, width, bottom=p1 + p2, label='Normal', color='#2ECC71') # Green
+
+    ax2.set_title(f'Outcome Distribution at {max_noise*100:.0f}% Noise', fontsize=14, fontweight='bold')
+    ax2.set_ylabel('Number of Records', fontsize=12)
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(max_noise_data.index)
+    ax2.legend()
+
+    plt.tight_layout()
+    
+    # Save the figure
+    plot_path = '/home/rajesh/work/dairy_cps/noise_analysis_plots.png'
+    plt.savefig(plot_path)
+    print(f"\nPlot saved to {plot_path}")
+    
+    plt.show()
+
+# ==========================================
+# 5. MAIN EXECUTION LOOP
+# ==========================================
 variables_to_noise = ['Milk', 'RT', 'Water']
 noise_levels = [0.01, 0.05, 0.1, 0.15, 0.2]
 all_results = []
@@ -228,8 +289,7 @@ if selected_df is not None:
                 'Detected_Normal': num_normal
             })
             
-            print(f"Found {num_cyber_anomalies} cyber anomalies with {noise*100:.2f}% noise in {variable}")
-            print("\n" + "=" * 40 + "\n")
+            # print(f"Found {num_cyber_anomalies} cyber anomalies with {noise*100:.2f}% noise in {variable}")
 
     print("--- Noise Injection Summary ---")
     results_df = pd.DataFrame(all_results)
@@ -237,7 +297,14 @@ if selected_df is not None:
 
     # Save results to CSV
     output_csv_path = '/home/rajesh/work/dairy_cps/noise.csv'
-    results_df.to_csv(output_csv_path, index=False)\
+    results_df.to_csv(output_csv_path, index=False)
     print(f"\nDetailed results saved to {output_csv_path}")
+
+    # ==========================================
+    # 6. GENERATE GRAPHICS
+    # ==========================================
+    print("\nGenerating visualizations...")
+    visualize_results(results_df)
+
 else:
     print("Please load a dataframe into 'selected_df' to run the noise analysis.")
